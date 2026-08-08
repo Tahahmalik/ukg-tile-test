@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UKG Tile Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+
+<h1>UKG Tile Test</h1>
+
+<h2>Environment</h2>
+<pre id="env"></pre>
+
+<h2>Messages</h2>
+<pre id="messages"></pre>
+
+<h2>UserInfo Test</h2>
+<pre id="userinfo"></pre>
+
+<script>
+
+function write(id, text) {
+    document.getElementById(id).textContent += text + "\n\n";
+}
+
+const env = {
+    href: window.location.href,
+    search: window.location.search,
+    referrer: document.referrer,
+    origin: window.location.origin
+};
+
+document.getElementById("env").textContent =
+    JSON.stringify(env, null, 2);
+
+// Listen for postMessage traffic
+window.addEventListener("message", event => {
+    write(
+        "messages",
+        JSON.stringify({
+            origin: event.origin,
+            data: event.data
+        }, null, 2)
+    );
+});
+
+// Try calling UKG UserInfo endpoint
+fetch(
+    "https://fyidoctors.prd.mykronos.com/get/UserInfo",
+    {
+        credentials: "include"
+    }
+)
+.then(res => res.text())
+.then(data => {
+    write("userinfo", data);
+})
+.catch(err => {
+    write("userinfo", "ERROR: " + err.message);
+});
+
+</script>
+
+</body>
+</html>
