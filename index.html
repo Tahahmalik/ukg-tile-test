@@ -46,48 +46,34 @@
     <h2>Cookies</h2>
     <pre id="cookies">Loading...</pre>
 
-   <script>
-
-function append(id, text) {
-    document.getElementById(id).textContent += text + "\n\n";
-}
+ <script>
 
 document.getElementById("env").textContent =
 JSON.stringify({
     href: location.href,
     search: location.search,
     referrer: document.referrer,
-    origin: location.origin,
     embedded: window.self !== window.top
 }, null, 2);
 
-window.addEventListener("message", function(event){
-
-    append(
-        "messages",
-        JSON.stringify({
-            origin: event.origin,
-            data: event.data
-        }, null, 2)
-    );
-
-});
-
-window.parent.postMessage({
-    source: "ukg-test",
-    action: "ready"
-}, "*");
-
 window.addEventListener("message", function(event) {
+
     document.getElementById("messages").textContent +=
         JSON.stringify({
+            timestamp: new Date().toISOString(),
             origin: event.origin,
             data: event.data
         }, null, 2) + "\n\n";
+
+    console.log("MESSAGE RECEIVED:", event);
+
 });
 
+document.getElementById("userinfo").textContent =
+    "Message listener active";
+
 window.parent.postMessage({
-    source: "ukg-tile-test",
+    source: "ukg-test",
     action: "ready"
 }, "*");
 
