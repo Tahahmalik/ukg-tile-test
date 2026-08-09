@@ -1,81 +1,251 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UKG Tile Diagnostics</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADP Diagnostic Tile</title>
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-
-        h1 {
-            color: #0078d4;
-        }
-
-        h2 {
-            margin-top: 30px;
-        }
-
-        pre {
-            background: white;
-            border: 1px solid #ddd;
-            padding: 12px;
-            overflow: auto;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-    </style>
+<style>
+body{
+    font-family:Arial,sans-serif;
+    margin:20px;
+    background:#f5f5f5;
+}
+pre{
+    background:#fff;
+    border:1px solid #ddd;
+    padding:12px;
+    overflow:auto;
+    white-space:pre-wrap;
+    word-break:break-word;
+}
+.section{
+    margin-bottom:20px;
+}
+</style>
 </head>
 <body>
 
-    <h1>UKG Tile Diagnostics</h1>
+<h1>ADP Diagnostic Tile</h1>
 
+<div class="section">
     <h2>Environment</h2>
-    <pre id="env">Loading...</pre>
+    <pre id="environment"></pre>
+</div>
 
-    <h2>Messages</h2>
-    <pre id="messages">Waiting for messages...</pre>
+<div class="section">
+    <h2>Query Parameters</h2>
+    <pre id="query"></pre>
+</div>
 
-    <h2>UserInfo Test</h2>
-    <pre id="userinfo">Testing...</pre>
-
+<div class="section">
     <h2>Cookies</h2>
-    <pre id="cookies">Loading...</pre>
+    <pre id="cookies"></pre>
+</div>
 
- <script>
+<div class="section">
+    <h2>Local Storage</h2>
+    <pre id="localStorageDump"></pre>
+</div>
 
-document.getElementById("env").textContent =
-JSON.stringify({
+<div class="section">
+    <h2>Session Storage</h2>
+    <pre id="sessionStorageDump"></pre>
+</div>
+
+<div class="section">
+    <h2>Messages Received</h2>
+    <pre id="messages"></pre>
+</div>
+
+<div class="section">
+    <h2>Errors</h2>
+    <pre id="errors"></pre>
+</div>
+
+<script>
+
+function write(id, value){
+    document.getElementById(id).textContent =
+        typeof value === "string"
+            ? value
+            : JSON.stringify(value, null, 2);
+}
+
+function append(id, value){
+    const el = document.getElementById(id);
+
+    if(el.textContent === ""){
+        el.textContent = JSON.stringify(value, null, 2);
+    } else {
+        el.textContent +=
+            "\n\n---------------------------------\n\n" +
+            JSON.stringify(value, null, 2);
+    }
+}
+
+function dumpStorage(storage){
+    const obj = {};
+
+    for(let i=0;i<storage.length;i++){
+        const key = storage.key(i);
+        obj[key] = storage.getItem(key);
+    }
+
+    return obj;
+}
+
+//
+// ENVIRONMENT
+//
+
+let embedded = false;
+
+try{
+    embedded = window.self !== window.top;
+}catch(ex){
+    embedded = true;
+}
+
+const environment = {
     href: location.href,
+    origin: location.origin,
+    pathname: location.pathname,
     search: location.search,
+    hash: location.hash,
     referrer: document.referrer,
-    embedded: window.self !== window.top
-}, null, 2);
+    embedded: embedded,
+    userAgent: navigator.userAgent,
+    timestamp: new Date().toISOString()
+};
 
-window.addEventListener("message", function(event) {
+write("environment", environment);
 
-    document.getElementById("messages").textContent +=
-        JSON.stringify({
-            timestamp: new Date().toISOString(),
-            origin: event.origin,
-            data: event.data
-        }, null, 2) + "\n\n";
+//
+// QUERY STRING
+//
 
-    console.log("MESSAGE RECEIVED:", event);
+const params = {};
+
+new URLSearchParams(location.search)
+    .forEach((value,key)=>{
+        params[key] = value;
+    });
+
+write("query", params);
+
+//
+// COOKIES
+//
+
+write("cookies", document.cookie || "(none)");
+
+//
+// STORAGE
+//
+
+try{
+    write("localStorageDump", dumpStorage(localStorage));
+}catch(ex){
+    write("localStorageDump", ex.message);
+}
+
+try{
+    write("sessionStorageDump", dumpStorage(sessionStorage));
+}catch(ex){
+    write("sessionStorageDump", ex.message);
+}
+
+//
+// MESSAGE LISTENER
+//
+
+write("messages","Waiting for messages...");
+
+window.addEventListener("message", function(event){
+
+    const msg = {
+        timestamp: new Date().toISOString(),
+        origin: event.origin,
+        data: event.data
+    };
+
+    console.log("MESSAGE RECEIVED", msg);
+
+    append("messages", msg);
+});
+
+//
+// ERROR CAPTURE
+//
+
+window.addEventListener("error", function(event){
+
+    append("errors", {
+        type: "error",
+        message: event.message,
+        filename: event.filename,
+        line: event.lineno
+    });
 
 });
 
-document.getElementById("userinfo").textContent =
-    "Message listener active";
+window.addEventListener("unhandledrejection", function(event){
 
-window.parent.postMessage({
-    source: "ukg-test",
-    action: "ready"
-}, "*");
+    append("errors", {
+        type: "promise",
+        reason: String(event.reason)
+    });
+
+});
+
+//
+// PARENT WINDOW TEST
+//
+
+try{
+
+    window.parent.postMessage({
+        source: "adp-diagnostics",
+        type: "ready",
+        timestamp: new Date().toISOString()
+    }, "*");
+
+}catch(ex){
+
+    append("errors", {
+        type: "postMessage",
+        error: ex.message
+    });
+
+}
+
+//
+// CONTINUOUS PING
+//
+
+setInterval(function(){
+
+    try{
+
+        window.parent.postMessage({
+            source: "adp-diagnostics",
+            type: "ping",
+            timestamp: new Date().toISOString()
+        }, "*");
+
+    }catch(ex){
+
+        append("errors", {
+            type: "ping-error",
+            error: ex.message
+        });
+
+    }
+
+},10000);
+
+console.log("ADP diagnostic page loaded");
 
 </script>
 
